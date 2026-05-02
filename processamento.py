@@ -387,6 +387,23 @@ def exportar_ods(df: pd.DataFrame, indicadores: dict, faturamento: float) -> tup
         s_pct_ignorar = _add_style(doc, "sPercentualIgnorar", italic=True, color="#888888", data_style_name="percentual")
         s_total_moeda = _add_style(doc, "sTotalMoeda", bold=True, font_size="16pt", data_style_name="moedaBRL")
         s_total_pct = _add_style(doc, "sTotalPercentual", bold=True, font_size="16pt", data_style_name="percentual")
+        s_total_vermelho = _add_style(doc, "sTotalVermelho", bold=True, font_size="16pt", color="#dc2626")
+        s_total_moeda_vermelho = _add_style(
+            doc,
+            "sTotalMoedaVermelho",
+            bold=True,
+            font_size="16pt",
+            color="#dc2626",
+            data_style_name="moedaBRL",
+        )
+        s_total_pct_vermelho = _add_style(
+            doc,
+            "sTotalPercentualVermelho",
+            bold=True,
+            font_size="16pt",
+            color="#dc2626",
+            data_style_name="percentual",
+        )
 
         table = Table(name="CONSOLIDADO")
         doc.spreadsheet.addElement(table)
@@ -419,15 +436,22 @@ def exportar_ods(df: pd.DataFrame, indicadores: dict, faturamento: float) -> tup
         totais = [
             ("FATURAMENTO DO PERÍODO",      ind["faturamento"],      ind["pct_saldo"] * 0),
             ("TOTAL GERAL DE DESPESAS",     ind["total_despesas"],   ind["pct_despesas"]),
-            ("TOTAL DE CUSTO OPERACIONAL",  ind["custo_operacional"],ind["pct_operacional"]),
             ("SALDO",                        ind["saldo"],            ind["pct_saldo"]),
+            ("TOTAL DE CUSTO OPERACIONAL",  ind["custo_operacional"],ind["pct_operacional"]),
         ]
         for label, valor, pct in totais:
+            despesa_total = label == "TOTAL GERAL DE DESPESAS"
+            saldo_negativo = label == "SALDO" and valor < 0
+            usar_vermelho = despesa_total or saldo_negativo
+            estilo_total = s_total_vermelho if usar_vermelho else s_total
+            estilo_moeda_total = s_total_moeda_vermelho if usar_vermelho else s_total_moeda
+            estilo_pct_total = s_total_pct_vermelho if saldo_negativo else s_total_pct
+            valor_exibicao = -abs(valor) if despesa_total else valor
             tr = TableRow()
-            tr.addElement(_cell_text(label, s_total))
-            tr.addElement(_cell_float(valor, s_total_moeda))
-            tr.addElement(_cell_text("", s_total))
-            tr.addElement(_cell_float(_pct_decimal(pct), s_total_pct) if label != "FATURAMENTO DO PERÍODO" else _cell_text("", s_total))
+            tr.addElement(_cell_text(label, estilo_total))
+            tr.addElement(_cell_float(valor_exibicao, estilo_moeda_total))
+            tr.addElement(_cell_text("", estilo_total))
+            tr.addElement(_cell_float(_pct_decimal(pct), estilo_pct_total) if label != "FATURAMENTO DO PERÍODO" else _cell_text("", estilo_total))
             table.addElement(tr)
 
         buf = io.BytesIO()
@@ -481,6 +505,7 @@ def _exportar_xlsx_fallback(df, indicadores):
 
     header_font = Font(bold=True)
     total_font  = Font(bold=True, size=18)
+    total_red_font = Font(bold=True, size=18, color="DC2626")
     gray_font   = Font(color="888888", italic=True)
 
     headers = ["DESCRDEB", "VALPAGAMENTOTITULO", "TIPO DE CUSTO", "% SOBRE FATURAMENTO"]
@@ -509,14 +534,19 @@ def _exportar_xlsx_fallback(df, indicadores):
     for label, valor, pct in [
         ("FATURAMENTO DO PERÍODO",     ind["faturamento"],      None),
         ("TOTAL GERAL DE DESPESAS",    ind["total_despesas"],   ind["pct_despesas"] / 100),
-        ("TOTAL DE CUSTO OPERACIONAL", ind["custo_operacional"],ind["pct_operacional"] / 100),
         ("SALDO",                       ind["saldo"],            ind["pct_saldo"] / 100),
+        ("TOTAL DE CUSTO OPERACIONAL", ind["custo_operacional"],ind["pct_operacional"] / 100),
     ]:
-        ws.append([label, float(valor), "", pct])
+        despesa_total = label == "TOTAL GERAL DE DESPESAS"
+        saldo_negativo = label == "SALDO" and valor < 0
+        usar_vermelho = despesa_total or saldo_negativo
+        ws.append([label, -abs(float(valor)) if despesa_total else float(valor), "", pct])
         ws.cell(ws.max_row, 2).number_format = 'R$ #,##0.00'
         ws.cell(ws.max_row, 4).number_format = '0.00%'
         for cell in ws[ws.max_row]:
-            cell.font = total_font
+            cell.font = total_red_font if usar_vermelho else total_font
+        if despesa_total:
+            ws.cell(ws.max_row, 4).font = total_font
 
     buf = io.BytesIO()
     wb.save(buf)
