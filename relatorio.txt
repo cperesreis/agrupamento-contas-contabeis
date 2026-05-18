@@ -1,0 +1,265 @@
+¿1A¿150415¿2B¿2¿3C¿24¿4D¿Relatório de Pagamentos Efetuados¿5E¿Relatório de pagamentos efetuados,¿6F¿release 10.5;
+datawindow ( units=0 timer_interval=60000 color=1073741824 processing=0 print.printername=""  print.documentname=""  print.orientation=0 print.margin.left=110 print.margin.right=110 print.margin.top=96 print.margin.bottom=96 print.paper.size=0 print.paper.source=0 print.canusedefaultprinter=yes selected.mouse=no)
+header(height=568 color="536870912" )
+summary(height=76 color="536870912" )
+footer(height=236 color="536870912" )
+detail(height=264 color="536870912" )
+table(column=(type=long updatewhereclause=yes name=cliente_fornecedor_idclifor dbname="CONTABIL_PLANO_CONTAS.IDCLIFOR"  )
+column=(type=char(80) updatewhereclause=yes name=cliente_fornecedor_nome dbname="CONTABIL_PLANO_CONTAS.NOME"  )
+column=(type=long updatewhereclause=yes name=forma_pagrec_idrecebimento dbname="CONTABIL_PLANO_CONTAS.IDRECEBIMENTO"  )
+column=(type=char(40) updatewhereclause=yes name=forma_pagrec_descrrecebimento dbname="CONTABIL_PLANO_CONTAS.DESCRRECEBIMENTO"  )
+column=(type=long updatewhereclause=yes name=contas_pagar_baixas_idtitulo dbname="CONTABIL_PLANO_CONTAS.IDTITULO"  )
+column=(type=char(3) updatewhereclause=yes name=contas_pagar_baixas_digitotitulo dbname="CONTABIL_PLANO_CONTAS.DIGITOTITULO"  )
+column=(type=char(3) updatewhereclause=yes name=contas_pagar_baixas_serienota dbname="CONTABIL_PLANO_CONTAS.SERIENOTA"  )
+column=(type=date updatewhereclause=yes name=contas_pagar_baixas_dtpagamento dbname="CONTABIL_PLANO_CONTAS.DTPAGAMENTO"  )
+column=(type=decimal(2) updatewhereclause=yes initial="0" name=contas_pagar_valtitulo dbname="CONTABIL_PLANO_CONTAS.VALTITULO"  )
+column=(type=decimal(2) updatewhereclause=yes initial="0" name=contas_pagar_baixas_valpagamentotitulo dbname="CONTABIL_PLANO_CONTAS.VALPAGAMENTOTITULO"  )
+column=(type=decimal(2) updatewhereclause=yes initial="0" name=contas_pagar_baixas_valjuroscobrado dbname="CONTABIL_PLANO_CONTAS.VALJUROSCOBRADO"  )
+column=(type=decimal(2) updatewhereclause=yes initial="0" name=contas_pagar_baixas_valjurospostergado dbname="CONTABIL_PLANO_CONTAS.VALJUROSPOSTERGADO"  )
+column=(type=decimal(2) updatewhereclause=yes initial="0" name=contas_pagar_baixas_valdescconcedidotitulo dbname="CONTABIL_PLANO_CONTAS.VALDESCCONCEDIDOTITULO"  )
+column=(type=date updatewhereclause=yes name=contas_pagar_dtvencimento dbname="CONTABIL_PLANO_CONTAS.DTVENCIMENTO"  )
+column=(type=long updatewhereclause=yes name=idctacredito dbname="CONTABIL_PLANO_CONTAS.IDCTACREDITO"  )
+column=(type=char(40) updatewhereclause=yes name=descrctacredito dbname="CONTABIL_PLANO_CONTAS.DESCRCTACREDITO"  )
+column=(type=long updatewhereclause=yes name=idctadebito dbname="CONTABIL_PLANO_CONTAS.IDCTADEBITO"  )
+column=(type=char(40) updatewhereclause=yes name=descrdeb dbname="CONTABIL_PLANO_CONTAS.DESCRDEB"  )
+ retrieve="
+
+
+SELECT IDCLIFOR,
+       NOME,
+       IDRECEBIMENTO,
+       DESCRRECEBIMENTO,
+       IDTITULO,
+       DIGITOTITULO,
+       SERIENOTA,
+       DTPAGAMENTO,
+       VALTITULO,
+       VALPAGAMENTOTITULO,
+       VALJUROSCOBRADO,
+       VALJUROSPOSTERGADO,
+       VALDESCCONCEDIDOTITULO,
+       DTVENCIMENTO,
+       IDCTACREDITO,
+       DESCRCTACREDITO,
+       IDCTADEBITO,
+       CBEB.DESCRCTACONTABIL AS DESCRDEB
+FROM (
+         SELECT CLIENTE_FORNECEDOR.IDCLIFOR,
+                CLIENTE_FORNECEDOR.NOME,
+                FORMA_PAGREC.IDRECEBIMENTO,
+                FORMA_PAGREC.DESCRRECEBIMENTO,
+                CONTAS_PAGAR_BAIXAS.IDTITULO,
+                CONTAS_PAGAR_BAIXAS.DIGITOTITULO,
+                CONTAS_PAGAR_BAIXAS.SERIENOTA,
+                CONTAS_PAGAR_BAIXAS.DTPAGAMENTO,
+                CONTAS_PAGAR.VALTITULO,
+                CONTAS_PAGAR_BAIXAS.VALPAGAMENTOTITULO,
+                CONTAS_PAGAR_BAIXAS.VALJUROSCOBRADO,
+                CONTAS_PAGAR_BAIXAS.VALJUROSPOSTERGADO,
+                CONTAS_PAGAR_BAIXAS.VALDESCCONCEDIDOTITULO,
+                CONTAS_PAGAR.DTVENCIMENTO,
+                CONTAS_PAGAR.IDCTACONTABIL                                AS IDCTACREDITO,
+                CTA.DESCRCTACONTABIL                                      AS DESCRCTACREDITO,
+                COALESCE(IDCTACONTABILCONTRAPARTIDA,
+                         UF_FRST_CPAG_PESQ(CONTAS_PAGAR.IDEMPRESA, CONTAS_PAGAR.IDPLANILHA, 'D',
+                                           CONTAS_PAGAR.ORIGEMMOVIMENTO)) AS IDCTADEBITO
+         FROM CLIENTE_FORNECEDOR,
+              CONTAS_PAGAR_BAIXAS,
+              CONTAS_PAGAR
+                  JOIN DBA.CONTABIL_PLANO_CONTAS AS CTA ON CONTAS_PAGAR.IDCTACONTABIL = CTA.IDCTACONTABIL,
+              FORMA_PAGREC
+         WHERE CLIENTE_FORNECEDOR.IDCLIFOR = CONTAS_PAGAR_BAIXAS.IDCLIFOR
+           AND FORMA_PAGREC.IDRECEBIMENTO = CONTAS_PAGAR.IDPAGAMENTO
+           AND CONTAS_PAGAR_BAIXAS.IDEMPRESA = CONTAS_PAGAR.IDEMPRESA
+           AND CONTAS_PAGAR_BAIXAS.IDCLIFOR = CONTAS_PAGAR.IDCLIFOR
+           AND CONTAS_PAGAR_BAIXAS.IDTITULO = CONTAS_PAGAR.IDTITULO
+           AND CONTAS_PAGAR_BAIXAS.DIGITOTITULO = CONTAS_PAGAR.DIGITOTITULO
+           AND CONTAS_PAGAR_BAIXAS.SERIENOTA = CONTAS_PAGAR.SERIENOTA
+           AND CONTAS_PAGAR_BAIXAS.IDEMPRESA IN (:RA_IDEMPRESA)
+           AND FORMA_PAGREC.IDRECEBIMENTO IN (:RA_IDRECEBIMENTO)
+           AND CONTAS_PAGAR_BAIXAS.IDCLIFOR = :RA_IDCLIFOR
+           AND CONTAS_PAGAR_BAIXAS.DTPAGAMENTO BETWEEN :RA_DTINI AND :RA_DTFIM
+           AND NOT EXISTS
+             (
+                 SELECT 0
+                 FROM CONTAS_PAGAR_BAIXAS AS CPB
+                          JOIN CONTAS_PAGAR AS CP ON
+                     (CPB.IDEMPRESABAIXA = CP.IDEMPRESA AND
+                      CPB.IDPLANILHA = CP.IDPLANILHA)
+                 WHERE CONTAS_PAGAR_BAIXAS.IDEMPRESA = CPB.IDEMPRESA
+                   AND CONTAS_PAGAR_BAIXAS.IDCLIFOR = CPB.IDCLIFOR
+                   AND CONTAS_PAGAR_BAIXAS.IDTITULO = CPB.IDTITULO
+                   AND CONTAS_PAGAR_BAIXAS.DIGITOTITULO = CPB.DIGITOTITULO
+                   AND CONTAS_PAGAR_BAIXAS.SERIENOTA = CPB.SERIENOTA
+             )
+     ) AS TMP 
+    JOIN DBA.CONTABIL_PLANO_CONTAS AS CBEB ON CBEB.IDCTACONTABIL = TMP.IDCTADEBITO
+
+"
+  arguments=(("RA_IDEMPRESA", numberlist), ("RA_IDCLIFOR", number), ("RA_IDRECEBIMENTO", numberlist), ("RA_DTINI", date), ("RA_DTFIM", date))
+ sort="contas_pagar_baixas_dtpagamento A, forma_pagrec_descrrecebimento A, cliente_fornecedor_nome A"
+)
+group(level=1 header.height=64 trailer.height=100 by=("forma_pagrec_idrecebimento" "forma_pagrec_descrrecebimento"  ) header.color="536870912" trailer.color="536870912" )
+group(level=2 header.height=68 trailer.height=68 by=("cliente_fornecedor_idclifor" "cliente_fornecedor_nome"  ) header.color="536870912" trailer.color="536870912" )
+line(name=l_3 visible="1" band=header background.mode="1" background.color="553648127" pen.style="0" pen.width="5" pen.color="0" x1="0" y1="16" x2="3397" y2="16" )
+line(name=l_2 visible="1" band=header background.mode="1" background.color="553648127" pen.style="0" pen.width="5" pen.color="0" x1="0" y1="560" x2="3397" y2="560" )
+line(name=l_1 visible="1" band=header background.mode="1" background.color="553648127" pen.style="0" pen.width="5" pen.color="0" x1="0" y1="436" x2="3397" y2="436" )
+compute(name=compute_4 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-7" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="777" y="168" height="240" width="1847" format="[GENERAL]" expression="uf_filtros()" alignment="2" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_1 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2757" y="40" height="52" width="631" format="dd/mm/yyyy hh:mm:ss" expression="today()" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_3 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="32" y="28" height="56" width="1819" format="[GENERAL]" expression="uf_nomeempresa()" alignment="0" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_16 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-12" font.pitch="2" font.weight="700" background.mode="2" background.color="16777215" color="0" x="32" y="88" height="80" width="3355" format="[GENERAL]" expression="uf_titulo()" alignment="2" border="0" html.valueishtml="0" crosstab.repeat=no )
+text(name=contas_pagar_baixas_view_idtitulo_t visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="389" y="500" height="52" width="160" text="Título" html.valueishtml="0" )
+text(name=obj_9066938 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="2775" y="444" height="108" width="288" text="Descontos Concedido" html.valueishtml="0" )
+text(name=t_2 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="2368" y="444" height="108" width="338" text="Juros  postergados" html.valueishtml="0" )
+text(name=obj_8936632 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="2021" y="444" height="108" width="270" text="Juros Cobrados" html.valueishtml="0" )
+text(name=obj_9432863 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="1641" y="500" height="52" width="297" text="Valor Pago" html.valueishtml="0" )
+text(name=contas_pagar_saldos_view_dtvencimento_t visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="3090" y="500" height="52" width="311" text="Vencimento" html.valueishtml="0" )
+text(name=contas_pagar_saldos_view_valtitulo_t visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="1239" y="500" height="52" width="315" text="Valor Título" html.valueishtml="0" )
+text(name=obj_8586486 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="855" y="444" height="108" width="320" text="Data Pagamento" html.valueishtml="0" )
+text(name=contas_pagar_baixas_view_serienota_t visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="2" border="0" x="658" y="500" height="52" width="133" text="Série" html.valueishtml="0" )
+compute(name=compute_20 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="2" background.color="1073741824" color="33554432" x="2587" y="368" height="56" width="786" format="[GENERAL]" expression="uf_versao()" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_21 visible="1" band=header font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="2" background.color="1073741824" color="33554432" x="32" y="364" height="56" width="795" format="[GENERAL]" expression="uf_pasta()" alignment="0" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=obj_8381961 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="0" y="0" height="8" width="9" format="[general]" expression="/* sum(contas_pagar_baixas_view_idtitulo for all) */" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=obj_8404428 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="0" y="0" height="8" width="9" format="[general]" expression="/* sum(contas_pagar_baixas_view_sumvaljuroscobr for all) */" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=obj_8410088 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="0" y="0" height="8" width="9" format="[general]" expression="/* sum(contas_pagar_baixas_view_sumvaldescconce for all) */" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=obj_8391456 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="0" y="0" height="8" width="9" format="###,###,###.00" expression="/* sum(contas_pagar_saldos_view_valtitulo for all) */" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=obj_8397992 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="0" y="0" height="8" width="9" format="[general]" expression="/* sum(contas_pagar_baixas_view_sumvalpagamento for all) */" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+text(name=t_4 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="0" border="0" x="32" y="4" height="56" width="283" text="Total Geral:" html.valueishtml="0" )
+compute(name=compute_11 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2775" y="16" height="56" width="288" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valdescconcedidotitulo for all)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_9 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2418" y="16" height="56" width="288" format="###,###,###.00" expression="sum(contas_pagar_baixas_valjurospostergado for all)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_7 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2002" y="16" height="56" width="288" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valjuroscobrado for all)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_5 visible="1" band=summary font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="1595" y="16" height="56" width="343" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valpagamentotitulo for all)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_14 visible="1	if(page()=pagecount(),1,0)" band=footer font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="18" y="8" height="76" width="3337" format="[GENERAL]" expression="uf_obs()" alignment="0" border="0" html.valueishtml="0" crosstab.repeat=no )
+line(name=l_4 visible="1	if(page()=pagecount(),1,0)" band=footer background.mode="1" background.color="553648127" pen.style="0" pen.width="5" pen.color="0" x1="5" y1="84" x2="3401" y2="84" )
+line(name=l_5 visible="1	if(page()=pagecount(),1,0)" band=footer background.mode="1" background.color="553648127" pen.style="0" pen.width="5" pen.color="0" x1="5" y1="156" x2="3401" y2="156" )
+compute(name=compute_2 visible="1" band=footer font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2880" y="172" height="52" width="512" format="[general]" expression="'Página ' + page() + ' de ' + pagecount()" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_13 visible="1	if(page()=pagecount(),1,0)" band=footer font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="37" y="96" height="56" width="3346" format="[GENERAL]" expression="uf_rodape()" alignment="0" border="0" html.valueishtml="0" crosstab.repeat=no )
+column(name=contas_pagar_baixas_digitotitulo visible="1" band=detail id=6 x="567" y="0" height="52" width="91" color="0" border="0" alignment="2" format="[general]" html.valueishtml="0" edit.autohscroll=no edit.autoselect=yes edit.autovscroll=no edit.case=any edit.codetable=no edit.displayonly=no edit.hscrollbar=no edit.imemode=0 edit.limit=0 edit.password=no edit.vscrollbar=no edit.validatecode=no edit.nilisnull=no edit.required=no criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_baixas_valdescconcedidoti_1 visible="1" band=detail id=13 x="2775" y="0" height="52" width="288" color="0" border="0" alignment="1" format="###,###,###,###.00" html.valueishtml="0" edit.name="ValorMedio" editmask.focusrectangle=no editmask.autoskip=no editmask.required=no editmask.readonly=no editmask.codetable=no editmask.ddcalendar=no editmask.spin=no editmask.useformat=no editmask.mask="###,###,###.00" editmask.imemode=0 criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_baixas_valjurospostergado visible="1" band=detail id=12 x="2418" y="0" height="52" width="288" color="0" border="0" alignment="1" format="###,###,###.00" html.valueishtml="0" edit.name="ValorMedio" editmask.focusrectangle=no editmask.autoskip=no editmask.required=no editmask.readonly=no editmask.codetable=no editmask.ddcalendar=no editmask.spin=no editmask.useformat=no editmask.mask="###,###,###.00" editmask.imemode=0 criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_baixas_valjuroscobrado visible="1" band=detail id=11 x="2002" y="0" height="52" width="288" color="0" border="0" alignment="1" format="###,###,###,###.00" html.valueishtml="0" edit.name="ValorMedio" editmask.focusrectangle=no editmask.autoskip=no editmask.required=no editmask.readonly=no editmask.codetable=no editmask.ddcalendar=no editmask.spin=no editmask.useformat=no editmask.mask="###,###,###.00" editmask.imemode=0 criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_baixas_valpagamentotitulo visible="1" band=detail id=10 x="1595" y="0" height="52" width="343" color="0" border="0" alignment="1" format="###,###,###,###.00" html.valueishtml="0" edit.name="ValorMedio" editmask.focusrectangle=no editmask.autoskip=no editmask.required=no editmask.readonly=no editmask.codetable=no editmask.ddcalendar=no editmask.spin=no editmask.useformat=no editmask.mask="###,###,###.00" editmask.imemode=0 criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_dtvencimento visible="1" band=detail id=14 x="3127" y="0" height="52" width="274" color="0" border="0" alignment="0" format="dd/mm/yyyy hh:mm:ss" html.valueishtml="0" edit.name="DD/MM/YYYY" editmask.focusrectangle=no editmask.autoskip=no editmask.required=no editmask.readonly=no editmask.codetable=no editmask.ddcalendar=no editmask.spin=no editmask.useformat=no editmask.mask="DD/MM/YYYY" editmask.imemode=0 criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_valtitulo visible="1" band=detail id=9 x="1207" y="0" height="52" width="347" color="0" border="0" alignment="1" format="###,###,###,###.00" html.valueishtml="0" edit.name="ValorMedio" editmask.focusrectangle=no editmask.autoskip=no editmask.required=no editmask.readonly=no editmask.codetable=no editmask.ddcalendar=no editmask.spin=no editmask.useformat=no editmask.mask="###,###,###.00" editmask.imemode=0 criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_baixas_serienota visible="1" band=detail id=7 x="681" y="0" height="52" width="110" color="0" border="0" alignment="1" format="[general]" html.valueishtml="0" edit.autohscroll=no edit.autoselect=yes edit.autovscroll=no edit.case=any edit.codetable=no edit.displayonly=no edit.hscrollbar=no edit.imemode=0 edit.limit=0 edit.password=no edit.vscrollbar=no edit.validatecode=no edit.nilisnull=no edit.required=no criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_baixas_idtitulo visible="1" band=detail id=5 x="311" y="0" height="52" width="238" color="0" border="0" alignment="1" format="######" html.valueishtml="0" edit.name="Inteiro 6 posicoes" editmask.focusrectangle=no editmask.autoskip=no editmask.required=no editmask.readonly=no editmask.codetable=no editmask.ddcalendar=no editmask.spin=no editmask.useformat=no editmask.mask="######" editmask.imemode=0 criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=contas_pagar_baixas_dtpagamento visible="1" band=detail id=8 x="901" y="0" height="52" width="274" color="0" border="0" alignment="0" format="dd/mm/yyyy hh:mm:ss" html.valueishtml="0" edit.name="DD/MM/YYYY" editmask.focusrectangle=no editmask.autoskip=no editmask.required=no editmask.readonly=no editmask.codetable=no editmask.ddcalendar=no editmask.spin=no editmask.useformat=no editmask.mask="DD/MM/YYYY" editmask.imemode=0 criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+compute(name=compute_22 visible="1" band=detail font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" background.mode="1" background.color="553648127" color="0" x="901" y="72" height="56" width="2487" format="[GENERAL]" expression="'Cta Crédito: ' +  idctacredito + ' - ' + descrctacredito " alignment="0" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_23 visible="1" band=detail font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" background.mode="1" background.color="553648127" color="0" x="901" y="136" height="56" width="2487" format="[GENERAL]" expression="'Cta Debito: ' +  idctadebito + ' - ' + descrdeb" alignment="0" border="0" html.valueishtml="0" crosstab.repeat=no )
+text(name=t_9 visible="1" band=header.1 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="0" border="0" x="32" y="0" height="56" width="562" text="Forma de Pagamento :" html.valueishtml="0" )
+column(name=forma_pagrec_idrecebimento visible="1" band=header.1 id=3 x="608" y="0" height="56" width="174" color="0" border="0" alignment="0" format="[general]" html.valueishtml="0" edit.autohscroll=no edit.autoselect=yes edit.autovscroll=no edit.case=any edit.codetable=no edit.displayonly=no edit.hscrollbar=no edit.imemode=0 edit.limit=0 edit.password=no edit.vscrollbar=no edit.validatecode=no edit.nilisnull=no edit.required=no criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=forma_pagrec_descrrecebimento visible="1" band=header.1 id=4 x="805" y="0" height="56" width="919" color="0" border="0" alignment="0" format="[general]" html.valueishtml="0" edit.autohscroll=no edit.autoselect=yes edit.autovscroll=no edit.case=any edit.codetable=no edit.displayonly=no edit.hscrollbar=no edit.imemode=0 edit.limit=0 edit.password=no edit.vscrollbar=no edit.validatecode=no edit.nilisnull=no edit.required=no criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+compute(name=obj_8473841 visible="1" band=trailer.1 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="0" y="0" height="8" width="9" format="[general]" expression="/* sum(contas_pagar_baixas_view_idtitulo for group 1) */" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+text(name=t_3 visible="1" band=trailer.1 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="0" border="0" x="32" y="4" height="56" width="1504" text="Total por Forma de Pagamento :	'Total por Forma de Pagamento : '+ left(forma_pagrec_descrrecebimento,35) " html.valueishtml="0" )
+compute(name=compute_12 visible="1" band=trailer.1 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2775" y="4" height="56" width="288" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valdescconcedidotitulo for group 1)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_10 visible="1" band=trailer.1 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2418" y="4" height="56" width="288" format="###,###,###.00" expression="sum(contas_pagar_baixas_valjurospostergado for group 1)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_8 visible="1" band=trailer.1 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2002" y="4" height="56" width="288" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valjuroscobrado for group 1)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_6 visible="1" band=trailer.1 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="1595" y="4" height="56" width="343" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valpagamentotitulo for group 1)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+text(name=t_8 visible="1" band=header.2 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="0" border="0" x="183" y="0" height="56" width="526" text="Cliente/ Fornecedor :" html.valueishtml="0" )
+column(name=cliente_fornecedor_nome visible="1" band=header.2 id=2 x="1015" y="0" height="56" width="1810" color="0" border="0" alignment="0" format="[general]" html.valueishtml="0" edit.autohscroll=no edit.autoselect=yes edit.autovscroll=no edit.case=any edit.codetable=no edit.displayonly=no edit.hscrollbar=no edit.imemode=0 edit.limit=0 edit.password=no edit.vscrollbar=no edit.validatecode=no edit.nilisnull=no edit.required=no criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+column(name=cliente_fornecedor_idclifor visible="1" band=header.2 id=1 x="727" y="0" height="56" width="270" color="0" border="0" alignment="1" format="[general]" html.valueishtml="0" edit.autohscroll=no edit.autoselect=yes edit.autovscroll=no edit.case=any edit.codetable=no edit.displayonly=no edit.hscrollbar=no edit.imemode=0 edit.limit=0 edit.password=no edit.vscrollbar=no edit.validatecode=no edit.nilisnull=no edit.required=no criteria.required=no criteria.override_edit=no crosstab.repeat=no background.mode="1" background.color="553648127" font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="400" tabsequence=0 )
+text(name=t_10 visible="1" band=trailer.2 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" alignment="0" border="0" x="183" y="4" height="56" width="1344" text="Total por Cliente :	'Total por Cliente : '+ left(cliente_fornecedor_nome ,35)" html.valueishtml="0" )
+compute(name=compute_18 visible="1" band=trailer.2 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2775" y="8" height="52" width="288" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valdescconcedidotitulo for group 2)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_17 visible="1" band=trailer.2 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2418" y="8" height="52" width="288" format="###,###,###.00" expression="sum(contas_pagar_baixas_valjurospostergado for group 2)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_19 visible="1" band=trailer.2 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="2002" y="8" height="52" width="288" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valjuroscobrado for group 2)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+compute(name=compute_15 visible="1" band=trailer.2 font.charset="0" font.face="Arial" font.family="2" font.height="-8" font.pitch="2" font.weight="700" background.mode="1" background.color="553648127" color="0" x="1595" y="8" height="52" width="343" format="###,###,###,###.00" expression="sum(contas_pagar_baixas_valpagamentotitulo for group 2)" alignment="1" border="0" html.valueishtml="0" crosstab.repeat=no )
+htmltable(border="0" cellPadding="1" cellSpacing="1" )
+htmlgen(clientComputedFields="1" clientEvents="1" clientFormatting="0" clientScriptable="0" clientValidation="1" encodeSelfLinkArgs="1" generateDDDWFrames="1" generateJavaScript="1" netscapeLayers="0" pagingMethod=0 )
+xhtmlgen() cssgen(sessionSpecific="0" )
+xmlgen(inline="0" )
+xsltgen()
+jsgen()
+export.xml(headGroups="1" includewhitespace="0" metadatatype=0 savemetadata=0 )
+import.xml()
+export.pdf(method=0 distill.customPostScript="0" xslfop.print="0" )
+export.xhtml()
+¿7G¿Estão sendo excluídos do relatório as baixas dos títulos a vista. A ordem do mesmo é por data de pagamento, forma de pagamento e cliente.¿8H¿
+
+
+SELECT IDCLIFOR,
+       NOME,
+       IDRECEBIMENTO,
+       DESCRRECEBIMENTO,
+       IDTITULO,
+       DIGITOTITULO,
+       SERIENOTA,
+       DTPAGAMENTO,
+       VALTITULO,
+       VALPAGAMENTOTITULO,
+       VALJUROSCOBRADO,
+       VALJUROSPOSTERGADO,
+       VALDESCCONCEDIDOTITULO,
+       DTVENCIMENTO,
+       IDCTACREDITO,
+       DESCRCTACREDITO,
+       IDCTADEBITO,
+       CBEB.DESCRCTACONTABIL AS DESCRDEB
+FROM (
+         SELECT CLIENTE_FORNECEDOR.IDCLIFOR,
+                CLIENTE_FORNECEDOR.NOME,
+                FORMA_PAGREC.IDRECEBIMENTO,
+                FORMA_PAGREC.DESCRRECEBIMENTO,
+                CONTAS_PAGAR_BAIXAS.IDTITULO,
+                CONTAS_PAGAR_BAIXAS.DIGITOTITULO,
+                CONTAS_PAGAR_BAIXAS.SERIENOTA,
+                CONTAS_PAGAR_BAIXAS.DTPAGAMENTO,
+                CONTAS_PAGAR.VALTITULO,
+                CONTAS_PAGAR_BAIXAS.VALPAGAMENTOTITULO,
+                CONTAS_PAGAR_BAIXAS.VALJUROSCOBRADO,
+                CONTAS_PAGAR_BAIXAS.VALJUROSPOSTERGADO,
+                CONTAS_PAGAR_BAIXAS.VALDESCCONCEDIDOTITULO,
+                CONTAS_PAGAR.DTVENCIMENTO,
+                CONTAS_PAGAR.IDCTACONTABIL                                AS IDCTACREDITO,
+                CTA.DESCRCTACONTABIL                                      AS DESCRCTACREDITO,
+                COALESCE(IDCTACONTABILCONTRAPARTIDA,
+                         UF_FRST_CPAG_PESQ(CONTAS_PAGAR.IDEMPRESA, CONTAS_PAGAR.IDPLANILHA, 'D',
+                                           CONTAS_PAGAR.ORIGEMMOVIMENTO)) AS IDCTADEBITO
+         FROM CLIENTE_FORNECEDOR,
+              CONTAS_PAGAR_BAIXAS,
+              CONTAS_PAGAR
+                  JOIN DBA.CONTABIL_PLANO_CONTAS AS CTA ON CONTAS_PAGAR.IDCTACONTABIL = CTA.IDCTACONTABIL,
+              FORMA_PAGREC
+         WHERE CLIENTE_FORNECEDOR.IDCLIFOR = CONTAS_PAGAR_BAIXAS.IDCLIFOR
+           AND FORMA_PAGREC.IDRECEBIMENTO = CONTAS_PAGAR.IDPAGAMENTO
+           AND CONTAS_PAGAR_BAIXAS.IDEMPRESA = CONTAS_PAGAR.IDEMPRESA
+           AND CONTAS_PAGAR_BAIXAS.IDCLIFOR = CONTAS_PAGAR.IDCLIFOR
+           AND CONTAS_PAGAR_BAIXAS.IDTITULO = CONTAS_PAGAR.IDTITULO
+           AND CONTAS_PAGAR_BAIXAS.DIGITOTITULO = CONTAS_PAGAR.DIGITOTITULO
+           AND CONTAS_PAGAR_BAIXAS.SERIENOTA = CONTAS_PAGAR.SERIENOTA
+           AND CONTAS_PAGAR_BAIXAS.IDEMPRESA IN (:RA_IDEMPRESA)
+           AND FORMA_PAGREC.IDRECEBIMENTO IN (:RA_IDRECEBIMENTO)
+           AND CONTAS_PAGAR_BAIXAS.IDCLIFOR = :RA_IDCLIFOR
+           AND CONTAS_PAGAR_BAIXAS.DTPAGAMENTO BETWEEN :RA_DTINI AND :RA_DTFIM
+           AND NOT EXISTS
+             (
+                 SELECT 0
+                 FROM CONTAS_PAGAR_BAIXAS AS CPB
+                          JOIN CONTAS_PAGAR AS CP ON
+                     (CPB.IDEMPRESABAIXA = CP.IDEMPRESA AND
+                      CPB.IDPLANILHA = CP.IDPLANILHA)
+                 WHERE CONTAS_PAGAR_BAIXAS.IDEMPRESA = CPB.IDEMPRESA
+                   AND CONTAS_PAGAR_BAIXAS.IDCLIFOR = CPB.IDCLIFOR
+                   AND CONTAS_PAGAR_BAIXAS.IDTITULO = CPB.IDTITULO
+                   AND CONTAS_PAGAR_BAIXAS.DIGITOTITULO = CPB.DIGITOTITULO
+                   AND CONTAS_PAGAR_BAIXAS.SERIENOTA = CPB.SERIENOTA
+             )
+     ) AS TMP 
+    JOIN DBA.CONTABIL_PLANO_CONTAS AS CBEB ON CBEB.IDCTACONTABIL = TMP.IDCTADEBITO
+
+¿9I¿T¿1J¿¿1K¿F¿1L¿¿1M¿¿1N¿¿1O¿¿1P¿¿1Q¿F¿1R¿¿1S¿F¿1T¿¿1U¿7¿2A¿
+||||||||||1	PASTTAB E PASTFIL NÃO EXPORTADOS 22.0
+||||||||||2	Financeiro	Financeiro
+||||||||||24	Informe a(s) forma(s) de pagto ou branco p/ todas 	d_filtro0036	1
+28	Informe o fornecedor ou branco para todos	d_filtro0013	1
+104	Data de pagamento inicial	d_filtro00321	1
+105	Data de pagamento final	d_filtro00322	1
+160	Informe a(s) empresa(s)	d_filtro0031	1
+||||||||||1	PASTTAB E PASTFIL NÃO EXPORTADOS 22.0
+||||||||||150415	160	RA_IDEMPRESA	=	1	T	F
+150415	28	RA_IDCLIFOR	=	2	T	F
+150415	24	RA_IDRECEBIMENTO	=	3	T	F
+150415	104	RA_DTINI	=	4	T	F
+150415	105	RA_DTFIM	=	5	T	F
+||||||||||2	24	Contas a Pagar	Contas a Pagar
+||||||||||	TABELAS NÃO EXPORTADAS 22.0	
+||||||||||

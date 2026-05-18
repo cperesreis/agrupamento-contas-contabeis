@@ -190,44 +190,6 @@ def ler_arquivo(file_upload, modo_base: bool = False):
     return df, aviso_vazio
 
 
-def preparar_dataframe_despesas(df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
-    """
-    Normaliza um DataFrame de despesas vindo do banco.
-
-    Mantém o mesmo contrato usado pelas planilhas:
-        (DataFrame com DESCRDEB e VALPAGAMENTOTITULO, aviso_vazio)
-    """
-    if df is None:
-        raise ValueError("A consulta de despesas não retornou dados.")
-
-    df = df.copy()
-    df.columns = [str(c).strip().upper() for c in df.columns]
-
-    if "DESCRDEB" not in df.columns:
-        raise ValueError("Coluna 'DESCRDEB' não encontrada na consulta de despesas.")
-    if "VALPAGAMENTOTITULO" not in df.columns:
-        raise ValueError("Coluna 'VALPAGAMENTOTITULO' não encontrada na consulta de despesas.")
-
-    df = df[["DESCRDEB", "VALPAGAMENTOTITULO"]].copy()
-    df["DESCRDEB"] = df["DESCRDEB"].astype(str).str.strip()
-
-    df = df[~df["DESCRDEB"].isin(CONTAS_IGNORADAS_ORIGEM)].copy()
-    df = df[df["DESCRDEB"].notna() & (df["DESCRDEB"] != "") & (df["DESCRDEB"] != "nan")]
-
-    aviso_vazio = df.empty
-
-    if not aviso_vazio:
-        valores_convertidos = []
-        for idx, row in df.iterrows():
-            try:
-                valores_convertidos.append(_converter_valor(row["VALPAGAMENTOTITULO"]))
-            except ValueError as e:
-                raise ValueError(f"Linha {idx + 1} da consulta de despesas: {e}")
-        df["VALPAGAMENTOTITULO"] = valores_convertidos
-
-    return df, aviso_vazio
-
-
 def ler_base_local(caminho: str = BASE_CLASSIFICACAO_ARQUIVO):
     """
     Lê a base de classificação salva localmente.

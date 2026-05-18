@@ -4,7 +4,3 @@ openpyxl>=3.1.0
 xlrd>=2.0.1
 odfpy>=1.4.1
 pyexcel-ods3>=0.6.1
-python-dotenv>=1.0.1
-SQLAlchemy>=2.0.0
-ibm_db>=3.2.0
-ibm_db_sa>=0.4.1
