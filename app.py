@@ -68,12 +68,39 @@ st.markdown("""
                      padding:.8rem 1rem; border-radius:6px; margin:1rem 0; }
     .alert-error   { background:#fee2e2; border-left:4px solid #dc2626;
                      padding:.8rem 1rem; border-radius:6px; margin:1rem 0; }
+    .validation-error {
+        color:#dc2626;
+        font-size:16px;
+        font-weight:700;
+        margin:1rem 0;
+    }
     .alert-info    { background:#eff6ff; border-left:4px solid #3b82f6;
                      padding:.8rem 1rem; border-radius:6px; margin:.5rem 0;
                      font-size:.88rem; color:#1e40af; }
 
     .section-title { font-size:1.1rem; font-weight:600; color:#1e3a5f;
                      border-bottom:2px solid #2d6a9f; padding-bottom:.4rem; margin-bottom:1rem; }
+
+    div[data-testid="stTabs"] button[role="tab"] {
+        background:#deb297;
+        color:#1f2937;
+        border:1px solid #c79071;
+        border-radius:8px 8px 0 0;
+        margin-right:2ch;
+        padding:.7rem 1.4rem;
+        font-weight:700;
+    }
+    div[data-testid="stTabs"] button[role="tab"] * {
+        color:inherit;
+    }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        background:#c79071;
+        color:#111827;
+        border-color:#9f684b;
+    }
+    div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
+        background:#9f684b;
+    }
 
     div[data-testid="stDialog"] div[role="dialog"] {
         width: min(92vw, 560px);
@@ -211,12 +238,31 @@ if st.session_state.tema_visual == "escuro":
             color: #fee2e2;
             border-left-color: #ef4444;
         }
+        .validation-error {
+            color:#f87171;
+        }
         .pending-row {
             border-color:#475569;
             color:#0f172a;
         }
         .pending-row strong {
             color:#1f2937;
+        }
+        div[data-testid="stTabs"] button[role="tab"] {
+            background:#e8d826;
+            color:#111827;
+            border-color:#f3e85f;
+        }
+        div[data-testid="stTabs"] button[role="tab"] * {
+            color:inherit;
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            background:#fff176;
+            color:#111827;
+            border-color:#facc15;
+        }
+        div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
+            background:#facc15;
         }
         .stButton>button,
         div[data-testid="stButton"] button,
@@ -554,6 +600,13 @@ if processar:
 
             st.toast("Consulta processada com sucesso!", icon="✅")
             st.balloons()
+        except ValueError as e:
+            progress.empty()
+            st.session_state.processado = False
+            st.markdown(
+                f'<div class="validation-error">{html.escape(str(e))}</div>',
+                unsafe_allow_html=True,
+            )
         except Exception as e:
             progress.empty()
             st.session_state.processado = False
@@ -586,9 +639,9 @@ else:
     precisa_classificar_para_dashboard = not base_local_encontrada and pendentes_count > 0
     
     # Determina as abas baseadas na existência de pendências
-    nomes_abas = ["📊 Dashboard Geral", "📋 Tabela de Despesas", "⬇️ Downloads & Base"]
+    nomes_abas = ["📊  Dashboard Geral ", "📋  Tabela de Despesas ", "⬇️   Downloads & Base "]
     if pendentes_count > 0:
-        nomes_abas.insert(2, "🏷️ Pendências de Classificação")
+        nomes_abas.insert(2, "🏷️   Pendências de Classificação ")
         
     abas = st.tabs(nomes_abas)
 

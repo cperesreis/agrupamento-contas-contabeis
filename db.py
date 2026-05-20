@@ -223,6 +223,38 @@ def buscar_despesas(
         raise
 
 
+def validar_empresas_no_banco(empresas: list[int], engine: Engine | None = None) -> None:
+    """Confirma se os IDs selecionados existem no cadastro de empresas do DB2."""
+    empresas = _validar_empresas(empresas)
+    engine = engine or criar_engine_db2()
+
+    query = (
+        text(
+            """
+            SELECT IDEMPRESA
+            FROM DBA.EMPRESA
+            WHERE IDEMPRESA IN :empresas
+            """
+        )
+        .bindparams(bindparam("empresas", expanding=True))
+    )
+
+    df = pd.read_sql(query, engine, params={"empresas": empresas})
+    df.columns = [str(coluna).strip().upper() for coluna in df.columns]
+    encontradas = set()
+    if not df.empty and "IDEMPRESA" in df.columns:
+        encontradas = {int(empresa) for empresa in df["IDEMPRESA"].dropna().tolist()}
+
+    nao_encontradas = [empresa for empresa in empresas if empresa not in encontradas]
+    if nao_encontradas:
+        if len(nao_encontradas) == 1:
+            raise ValueError(
+                f"Empresa {nao_encontradas[0]} não foi encontrada no banco de dados ! Favor Verificar.."
+            )
+        ids = ", ".join(str(empresa) for empresa in nao_encontradas)
+        raise ValueError(f"Empresas {ids} não foram encontradas no banco de dados.")
+
+
 def buscar_dados_financeiros(
     empresas: list[int],
     data_inicio: date,
@@ -230,6 +262,7 @@ def buscar_dados_financeiros(
 ) -> tuple[pd.DataFrame, float]:
     """Retorna despesas e faturamento bruto usando uma única engine."""
     engine = criar_engine_db2()
+    validar_empresas_no_banco(empresas, engine=engine)
     despesas = buscar_despesas(empresas, data_inicio, data_fim, engine=engine)
     faturamento = buscar_faturamento_bruto(empresas, data_inicio, data_fim, engine=engine)
     return despesas, faturamento
