@@ -26,6 +26,14 @@ CONTAS_IGNORADAS_ORIGEM = {
 }
 
 TIPOS_VALIDOS = {"C.OPERACIONAL", "NÃO OPERACIONAL", "IGNORAR"}
+CONTA_SALARIOS_AGRUPADA = "SALÁRIOS"
+CONTAS_AGRUPAR_SALARIOS = {
+    "SALARIOS",
+    "SALARIOS A PAGAR",
+    "PROVISAO 13º SALARIO - DESPESA",
+    "ADIANTAMENTO A EMPREGADOS",
+    CONTA_SALARIOS_AGRUPADA,
+}
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -239,17 +247,39 @@ def ler_base_local(caminho: str = BASE_CLASSIFICACAO_ARQUIVO):
         return ler_arquivo(arquivo, modo_base=True)
 
 
-def consolidar(df: pd.DataFrame) -> pd.DataFrame:
+def consolidar(df: pd.DataFrame, retornar_agrupamentos: bool = False):
     """Agrupa por DESCRDEB, soma valores e ordena decrescente."""
     if df.empty:
-        return df.copy()
+        df_vazio = df.copy()
+        return (df_vazio, None) if retornar_agrupamentos else df_vazio
+
+    df = df.copy()
+    contas_salarios_encontradas = df[df["DESCRDEB"].isin(CONTAS_AGRUPAR_SALARIOS)].copy()
+    agrupamento_salarios = None
+
+    if not contas_salarios_encontradas.empty:
+        detalhes = (
+            contas_salarios_encontradas
+            .groupby("DESCRDEB", as_index=False)["VALPAGAMENTOTITULO"]
+            .sum()
+            .sort_values("DESCRDEB")
+            .to_dict("records")
+        )
+        total_salarios = float(contas_salarios_encontradas["VALPAGAMENTOTITULO"].sum())
+        agrupamento_salarios = {
+            "conta_destino": CONTA_SALARIOS_AGRUPADA,
+            "valor_total": total_salarios,
+            "detalhes": detalhes,
+        }
+        df.loc[df["DESCRDEB"].isin(CONTAS_AGRUPAR_SALARIOS), "DESCRDEB"] = CONTA_SALARIOS_AGRUPADA
+
     df_cons = (
         df.groupby("DESCRDEB", as_index=False)["VALPAGAMENTOTITULO"]
         .sum()
         .sort_values("VALPAGAMENTOTITULO", ascending=False)
         .reset_index(drop=True)
     )
-    return df_cons
+    return (df_cons, agrupamento_salarios) if retornar_agrupamentos else df_cons
 
 
 def classificar(df: pd.DataFrame, df_base: pd.DataFrame | None, classificacoes_manuais: dict) -> tuple:
@@ -673,6 +703,8 @@ def resetar_sessao(session_state) -> None:
     session_state.ods_bytes = None
     session_state.ods_pendencias_bytes = None
     session_state.ods_base_bytes = None
+    session_state.agrupamento_salarios = None
+    session_state.agrupamento_salarios_popup_exibido = False
     session_state.pop("perguntar_salvar_base", None)
     session_state.pop("df_base_original", None)
     session_state.pop("faturamento", None)

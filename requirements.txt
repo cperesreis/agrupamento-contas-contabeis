@@ -8,3 +8,4 @@ python-dotenv>=1.0.1
 SQLAlchemy>=2.0.0
 ibm_db>=3.2.0
 ibm_db_sa>=0.4.1
+plotly>=5.14.0
