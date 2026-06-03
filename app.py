@@ -13,6 +13,12 @@ import streamlit as st
 import plotly.express as px
 
 from db import buscar_dados_financeiros
+from integrim_client import (
+    IntegrimClient,
+    IntegrimConfigError,
+    IntegrimError,
+    InvalidCredentialsError,
+)
 from processamento import (
     BASE_CLASSIFICACAO_ARQUIVO,
     calcular_indicadores,
@@ -37,19 +43,75 @@ st.set_page_config(
 )
 
 if "tema_visual" not in st.session_state:
-    st.session_state.tema_visual = "claro"
+    st.session_state.tema_visual = "escuro"
+
+for chave, padrao in [
+    ("autenticado", False),
+    ("usuario_ciss", ""),
+    ("integrim_access_token", None),
+]:
+    if chave not in st.session_state:
+        st.session_state[chave] = padrao
 
 PLOTLY_TEMPLATE = "plotly_dark" if st.session_state.tema_visual == "escuro" else "plotly_white"
 
 st.markdown("""
 <style>
+    /* Ajuste de espaçamento geral no topo da página principal */
+    [data-testid="stAppViewContainer"]:not(:has(.login-shell)) .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1.5rem !important;
+    }
+
+    /* Centralização e ajuste do bloco de botões de tema */
+    div[data-testid="stHorizontalBlock"]:has(.theme-btn-claro) {
+        justify-content: center !important;
+        gap: 8px !important;
+        margin-bottom: 0.8rem !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.theme-btn-claro) > div[data-testid="stColumn"] {
+        width: auto !important;
+        flex: none !important;
+    }
+    .theme-btn-claro, .theme-btn-escuro {
+        display: none;
+    }
+
+    /* Botões de tema menores e discretos (Modo Claro padrão) */
+    div[data-testid="stHorizontalBlock"]:has(.theme-btn-claro) button {
+        padding: 0.3rem 0.75rem !important;
+        font-size: 0.75rem !important;
+        min-height: auto !important;
+        height: auto !important;
+        line-height: 1.2 !important;
+        border-radius: 20px !important;
+        background: transparent !important;
+        color: #64748b !important;
+        border: 1px solid #cbd5e1 !important;
+        font-weight: 500 !important;
+        box-shadow: none !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.theme-btn-claro) button:hover {
+        background: #f1f5f9 !important;
+        color: #1e293b !important;
+        border-color: #94a3b8 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.theme-btn-claro) button:disabled {
+        background: #e2e8f0 !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+        opacity: 1 !important;
+        font-weight: 600 !important;
+        cursor: default;
+    }
+
     .main-header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
-        padding: 2rem; border-radius: 12px; margin-bottom: 2rem;
+        padding: 1.25rem 2rem; border-radius: 12px; margin-bottom: 1.5rem;
         color: white; text-align: center;
     }
-    .main-header h1 { margin: 0; font-size: 2.2rem; }
-    .main-header p  { margin: .5rem 0 0; opacity: .85; font-size: 1rem; }
+    .main-header h1 { margin: 0; font-size: 2rem; }
+    .main-header p  { margin: .4rem 0 0; opacity: .85; font-size: 0.9rem; }
 
     .card {
         background: #f8fafc; border: 1px solid #e2e8f0;
@@ -177,6 +239,395 @@ st.markdown("""
     .pending-row strong { display:block; font-size:.78rem; color:#374151; margin-bottom:.15rem; }
     .pending-row .pending-account { font-weight:600; overflow-wrap:anywhere; }
     .pending-row .pending-value { text-align:right; font-weight:700; }
+
+    .login-shell {
+        min-height: calc(100vh - 4.5rem);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .login-shell::before,
+    .login-shell::after {
+        content: "";
+        position: absolute;
+        width: 22rem;
+        height: 22rem;
+        border-radius: 38%;
+        background: rgba(56, 189, 248, .14);
+        z-index: 0;
+    }
+    .login-shell::before {
+        top: -12rem;
+        left: 8%;
+    }
+    .login-shell::after {
+        right: -10rem;
+        bottom: -9rem;
+    }
+    .login-card {
+        width: min(92vw, 760px);
+        min-height: 390px;
+        display: grid;
+        grid-template-columns: minmax(280px, .95fr) minmax(260px, 1.05fr);
+        background: #ffffff;
+        border: 1px solid #dbe4ee;
+        border-radius: 8px;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+        overflow: hidden;
+        position: relative;
+        z-index: 1;
+    }
+    .login-form-panel {
+        background: linear-gradient(165deg, #60a5fa 0%, #4f7df0 100%);
+        padding: 3rem 2.15rem 2.3rem;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .login-brand h1 {
+        margin: 0;
+        font-size: clamp(1.35rem, 3vw, 1.7rem);
+        line-height: 1.12;
+        text-align: center;
+    }
+    .login-brand p {
+        margin: .65rem auto 1.1rem;
+        color: rgba(255,255,255,.86);
+        font-size: .84rem;
+        line-height: 1.35;
+        max-width: 19rem;
+        text-align: center;
+    }
+    .login-kicker {
+        color: rgba(255,255,255,.72);
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        text-align: center;
+        margin-bottom: .45rem;
+    }
+    .login-title {
+        color: #ffffff;
+        font-size: 1.05rem;
+        font-weight: 800;
+        text-align: center;
+        margin-bottom: .25rem;
+    }
+    .login-copy {
+        color: rgba(255,255,255,.78);
+        font-size: .82rem;
+        line-height: 1.35;
+        text-align: center;
+        margin: 0 auto .95rem;
+        max-width: 18rem;
+    }
+    .login-footer {
+        color: rgba(255,255,255,.72);
+        font-size: .72rem;
+        line-height: 1.35;
+        margin-top: .7rem;
+        text-align: center;
+    }
+    .login-visual {
+        background: #f8fbff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        position: relative;
+    }
+    .login-visual::before {
+        content: "";
+        position: absolute;
+        width: 12rem;
+        height: 12rem;
+        border-radius: 50%;
+        background: rgba(96, 165, 250, .12);
+        right: -5rem;
+        top: 1rem;
+    }
+    .login-illustration {
+        width: min(100%, 260px);
+        aspect-ratio: 1;
+        position: relative;
+    }
+    .login-phone {
+        position: absolute;
+        inset: 17% 28% 11% 28%;
+        border-radius: 24px;
+        background: #ffffff;
+        border: 9px solid #263447;
+        box-shadow: 0 16px 30px rgba(15, 23, 42, .2);
+    }
+    .login-panel {
+        position: absolute;
+        inset: 8% 18% 18% 18%;
+        border-radius: 8px;
+        background: linear-gradient(180deg, #60a5fa 0%, #4f8ff7 100%);
+        box-shadow: 0 12px 28px rgba(37, 99, 235, .28);
+    }
+    .login-avatar {
+        position: absolute;
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        left: calc(50% - 27px);
+        top: 16%;
+        background: #f8fafc;
+        border: 6px solid #a7f3d0;
+        box-shadow: inset 0 -12px 0 #e2e8f0;
+    }
+    .login-avatar::before {
+        content: "";
+        position: absolute;
+        width: 17px;
+        height: 17px;
+        border-radius: 50%;
+        background: #111827;
+        left: 50%;
+        top: 9px;
+        transform: translateX(-50%);
+    }
+    .login-avatar::after {
+        content: "";
+        position: absolute;
+        width: 32px;
+        height: 14px;
+        border-radius: 16px 16px 4px 4px;
+        background: #111827;
+        left: 50%;
+        top: 30px;
+        transform: translateX(-50%);
+    }
+    .login-line {
+        position: absolute;
+        left: 33%;
+        right: 33%;
+        height: 7px;
+        border-radius: 999px;
+        background: #eef6ff;
+    }
+    .login-line.one { top: 47%; }
+    .login-line.two { top: 55%; }
+    .login-line.three {
+        top: 66%;
+        left: 35%;
+        right: 35%;
+        background: #7dd3fc;
+    }
+    .login-person {
+        position: absolute;
+        width: 52px;
+        height: 92px;
+        left: 4%;
+        bottom: 8%;
+    }
+    .login-person::before {
+        content: "";
+        position: absolute;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #111827;
+        left: 14px;
+        top: 0;
+    }
+    .login-person::after {
+        content: "";
+        position: absolute;
+        width: 34px;
+        height: 58px;
+        border-radius: 18px 18px 8px 8px;
+        background: #65d18f;
+        left: 9px;
+        top: 26px;
+        box-shadow: 8px 57px 0 -14px #111827, -8px 57px 0 -14px #111827;
+    }
+    .login-plane {
+        position: absolute;
+        width: 0;
+        height: 0;
+        border-left: 28px solid #60a5fa;
+        border-top: 9px solid transparent;
+        border-bottom: 9px solid transparent;
+        transform: rotate(-25deg);
+        left: 18%;
+        top: 3%;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stForm"] {
+        border: none;
+        padding: 0;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stForm"] label {
+        color: rgba(255,255,255,.9);
+        font-size: .8rem;
+        font-weight: 500;
+        margin-bottom: 0.3rem;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stForm"] div[data-baseweb="input"] {
+        border-radius: 8px !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        background-color: #ffffff !important;
+        transition: all 0.2s ease;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stForm"] div[data-baseweb="input"]:focus-within {
+        border-color: #60a5fa !important;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.25) !important;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stForm"] input {
+        color: #0f172a !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 0.65rem 0.9rem;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stFormSubmitButton"] button[kind="primary"] {
+        border-radius: 8px;
+        min-height: 2.8rem;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 600;
+        background: #10b981 !important;
+        color: #ffffff !important;
+        border: none !important;
+        margin-top: .4rem;
+        box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2), 0 2px 4px -1px rgba(16, 185, 129, 0.1);
+        transition: all 0.2s ease;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stFormSubmitButton"] button[kind="primary"]:hover {
+        background: #059669 !important;
+        transform: translateY(-1px);
+        box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3), 0 4px 6px -2px rgba(16, 185, 129, 0.15);
+    }
+    
+    .login-shell {
+        display: none;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) {
+        background:
+            radial-gradient(circle at 12% 0%, rgba(96, 165, 250, 0.12), transparent 25%),
+            radial-gradient(circle at 100% 70%, rgba(59, 130, 246, 0.12), transparent 25%),
+            #0f172a;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) [data-testid="stHeader"] {
+        background: transparent;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) .block-container {
+        max-width: 820px;
+        min-height: calc(100vh - 2rem);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 1.5rem 1rem;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stHorizontalBlock"]:has(.login-form-marker) {
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #ffffff;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        transition: all 0.3s ease;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stColumn"]:has(.login-form-marker) {
+        min-height: 440px;
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        border-radius: 0;
+        padding: 2.5rem 2.25rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stColumn"]:has(.login-visual-marker) {
+        min-height: 440px;
+        background: #f8fafc;
+        border-radius: 0;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .login-form-marker,
+    .login-visual-marker {
+        display: none;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) .login-brand h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) .login-brand p {
+        font-size: .82rem;
+        max-width: 17rem;
+        margin-bottom: 1rem;
+        opacity: 0.85;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) .login-title {
+        font-size: 1rem;
+        font-weight: 600;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) .login-copy {
+        font-size: .78rem;
+        max-width: 16rem;
+        margin-bottom: 0.9rem;
+        opacity: 0.8;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) .login-footer {
+        font-size: .7rem;
+        opacity: 0.75;
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) .login-illustration {
+        width: min(100%, 260px);
+    }
+    [data-testid="stAppViewContainer"]:has(.login-shell) .login-visual {
+        width: 100%;
+        min-height: 100%;
+        background: transparent;
+    }
+    @media (max-width: 768px) {
+        [data-testid="stAppViewContainer"]:has(.login-shell) .block-container {
+            max-width: 460px;
+            padding-top: 2rem;
+            justify-content: flex-start;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stHorizontalBlock"]:has(.login-form-marker) {
+            border-radius: 16px;
+            flex-direction: column !important;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stColumn"]:has(.login-form-marker) {
+            width: 100% !important;
+            max-width: 100% !important;
+            flex-basis: 100% !important;
+            min-height: auto;
+            border-radius: 0;
+            padding: 2.2rem 1.8rem;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stColumn"]:has(.login-visual-marker) {
+            display: none !important;
+        }
+    }
+    @media (max-width: 480px) {
+        [data-testid="stAppViewContainer"]:has(.login-shell) .block-container {
+            padding: 1.5rem 0.75rem;
+        }
+        [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stColumn"]:has(.login-form-marker) {
+            padding: 2rem 1.25rem;
+        }
+    }
+    .user-pill {
+        background:#eff6ff;
+        color:#1e3a5f;
+        border:1px solid #bfdbfe;
+        border-radius:8px;
+        padding:.65rem .75rem;
+        font-size:.88rem;
+        margin-bottom:.75rem;
+        overflow-wrap:anywhere;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -248,6 +699,27 @@ if st.session_state.tema_visual == "escuro":
         .pending-row strong {
             color:#1f2937;
         }
+        .login-shell {
+            background:
+                radial-gradient(circle at 14% 0%, rgba(56, 189, 248, .16), transparent 28%),
+                radial-gradient(circle at 96% 70%, rgba(37, 99, 235, .18), transparent 25%);
+        }
+        [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stHorizontalBlock"]:has(.login-form-marker) {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: #1e293b;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stColumn"]:has(.login-form-marker) {
+            background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+        }
+        [data-testid="stAppViewContainer"]:has(.login-shell) div[data-testid="stColumn"]:has(.login-visual-marker) {
+            background: #0f172a;
+        }
+        .user-pill {
+            background:#172554;
+            color:#dbeafe;
+            border-color:#2563eb;
+        }
         div[data-testid="stTabs"] button[role="tab"] {
             background:#e8d826;
             color:#111827;
@@ -316,11 +788,115 @@ if st.session_state.tema_visual == "escuro":
         div[data-testid="stDownloadButton"] button:disabled * {
             color:inherit;
         }
+
+        /* Botões de tema em modo escuro */
+        div[data-testid="stHorizontalBlock"]:has(.theme-btn-claro) button {
+            background: transparent !important;
+            color: #94a3b8 !important;
+            border: 1px solid #334155 !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.theme-btn-claro) button:hover {
+            background: #1e293b !important;
+            color: #f1f5f9 !important;
+            border-color: #475569 !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.theme-btn-claro) button:disabled {
+            background: #334155 !important;
+            color: #ffffff !important;
+            border-color: #475569 !important;
+            opacity: 1 !important;
+            font-weight: 600 !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
-col_tema_spacer, col_tema_claro, col_tema_escuro = st.columns([8, 1, 1])
+def _limpar_sessao_auth():
+    st.session_state.autenticado = False
+    st.session_state.usuario_ciss = ""
+    st.session_state.integrim_access_token = None
+
+
+def _exibir_login():
+    st.markdown('<div class="login-shell"></div>', unsafe_allow_html=True)
+
+    col_form, col_visual = st.columns([0.95, 1.05], gap="small", vertical_alignment="center")
+
+    with col_form:
+        st.markdown("""
+        <div class="login-form-marker"></div>
+        <div class="login-brand">
+            <h1>Análise de Despesas</h1>
+            <p>Acesso seguro com credenciais CISSPoder</p>
+        </div>
+        <div class="login-title">Entre para continuar</div>
+        <div class="login-copy">Use seu usuário e senha do CISSPoder para acessar o painel.</div>
+        """, unsafe_allow_html=True)
+
+        with st.form("form_login_ciss"):
+            username = st.text_input("Usuário", placeholder="Seu usuário CISSPoder")
+            password = st.text_input("Senha", type="password", placeholder="Sua senha")
+            entrar = st.form_submit_button("Entrar", use_container_width=True)
+
+        st.markdown(
+            '<div class="login-footer">As credenciais são validadas diretamente no INTEGRIM.</div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_visual:
+        st.markdown("""
+        <div class="login-visual-marker"></div>
+        <div class="login-visual" aria-hidden="true">
+            <div class="login-illustration">
+                <div class="login-plane"></div>
+                <div class="login-phone"></div>
+                <div class="login-panel">
+                    <div class="login-avatar"></div>
+                    <div class="login-line one"></div>
+                    <div class="login-line two"></div>
+                    <div class="login-line three"></div>
+                </div>
+                <div class="login-person"></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    if not entrar:
+        return
+
+    if not username.strip() or not password:
+        st.error("Informe usuário e senha.")
+        return
+
+    with st.spinner("Validando acesso no INTEGRIM..."):
+        try:
+            payload = IntegrimClient().authenticate(username.strip(), password)
+        except InvalidCredentialsError:
+            st.error("Usuario ou senha incorretos")
+            return
+        except IntegrimConfigError as exc:
+            st.error(exc.user_message)
+            return
+        except IntegrimError as exc:
+            st.error(exc.user_message)
+            return
+
+    st.session_state.autenticado = True
+    st.session_state.usuario_ciss = username.strip()
+    st.session_state.integrim_access_token = payload["access_token"]
+    st.rerun()
+
+
+def criar_cliente_integrim_autenticado() -> IntegrimClient:
+    return IntegrimClient(access_token=st.session_state.get("integrim_access_token"))
+
+
+if not st.session_state.autenticado:
+    _exibir_login()
+    st.stop()
+
+col_tema_claro, col_tema_escuro = st.columns(2)
 with col_tema_claro:
+    st.markdown('<div class="theme-btn-claro"></div>', unsafe_allow_html=True)
     if st.button(
         "☀️ Claro",
         key="btn_tema_claro",
@@ -330,6 +906,7 @@ with col_tema_claro:
         st.session_state.tema_visual = "claro"
         st.rerun()
 with col_tema_escuro:
+    st.markdown('<div class="theme-btn-escuro"></div>', unsafe_allow_html=True)
     if st.button(
         "🌙 Escuro",
         key="btn_tema_escuro",
@@ -504,6 +1081,14 @@ elif not st.session_state.base_ausente_popup_exibido:
 
 # --- SIDEBAR: Filtros ---
 with st.sidebar:
+    st.markdown(
+        f'<div class="user-pill">Conectado como<br><strong>{html.escape(st.session_state.usuario_ciss)}</strong></div>',
+        unsafe_allow_html=True,
+    )
+    if st.button("Sair", key="btn_logout", use_container_width=True):
+        _limpar_sessao_auth()
+        st.rerun()
+
     st.header("🔎 Filtros da Consulta")
     with st.form("form_consulta_db2"):
         data_inicio = st.date_input("Data Inicial", value=date.today().replace(day=1), format="DD/MM/YYYY")
