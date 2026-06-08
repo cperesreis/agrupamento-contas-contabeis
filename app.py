@@ -55,7 +55,13 @@ def get_secret(key: str) -> str | None:
 AUTHENTIK_CLIENT_ID = get_secret("AUTHENTIK_CLIENT_ID")
 AUTHENTIK_CLIENT_SECRET = get_secret("AUTHENTIK_CLIENT_SECRET")
 AUTHENTIK_REDIRECT_URI = get_secret("AUTHENTIK_REDIRECT_URI")
-AUTHENTIK_SERVER_METADATA_URL = get_secret("AUTHENTIK_SERVER_METADATA_URL")
+
+# Suporta tanto AUTHENTIK_ISSUER quanto AUTHENTIK_SERVER_METADATA_URL (referência busca20)
+AUTHENTIK_ISSUER = get_secret("AUTHENTIK_ISSUER")
+if not AUTHENTIK_ISSUER:
+    metadata_url = get_secret("AUTHENTIK_SERVER_METADATA_URL")
+    if metadata_url:
+        AUTHENTIK_ISSUER = metadata_url.split("/.well-known/")[0]
 
 
 NOME_BASE_REVISAO = "base_classificacao_para_revisao.ods"
@@ -884,7 +890,7 @@ _auth_config_valida = bool(
     AUTHENTIK_CLIENT_ID
     and AUTHENTIK_CLIENT_SECRET
     and AUTHENTIK_REDIRECT_URI
-    and AUTHENTIK_SERVER_METADATA_URL
+    and AUTHENTIK_ISSUER
 )
 
 if not _auth_config_valida:
@@ -894,7 +900,7 @@ if not _auth_config_valida:
         "ou na aba **Secrets** do painel da Streamlit Cloud."
     )
     st.markdown(
-        "**Campos obrigatórios:** `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET`, `AUTHENTIK_REDIRECT_URI` e `AUTHENTIK_SERVER_METADATA_URL`."
+        "**Campos obrigatórios:** `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET`, `AUTHENTIK_REDIRECT_URI` e `AUTHENTIK_ISSUER` (ou `AUTHENTIK_SERVER_METADATA_URL`)."
     )
     st.stop()
 
@@ -907,7 +913,7 @@ if code and not st.session_state.autenticado:
             AUTHENTIK_CLIENT_ID,
             AUTHENTIK_CLIENT_SECRET,
             AUTHENTIK_REDIRECT_URI,
-            AUTHENTIK_SERVER_METADATA_URL
+            AUTHENTIK_ISSUER
         )
         if res_auth.get("ok"):
             st.session_state.autenticado = True
@@ -920,7 +926,7 @@ if code and not st.session_state.autenticado:
 
 # Obriga o login
 if not st.session_state.autenticado:
-    auth_url = obter_url_autorizacao(AUTHENTIK_CLIENT_ID, AUTHENTIK_REDIRECT_URI, AUTHENTIK_SERVER_METADATA_URL)
+    auth_url = obter_url_autorizacao(AUTHENTIK_CLIENT_ID, AUTHENTIK_REDIRECT_URI, AUTHENTIK_ISSUER)
     if st.session_state.deslogado_manualmente:
         _exibir_login(auth_url)
     else:

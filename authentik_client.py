@@ -6,32 +6,32 @@ import urllib3
 # Desativa avisos de SSL não verificado (caso use verify=False para o Authentik)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def obter_endpoints_authentik(metadata_url: str) -> dict:
+def obter_endpoints_authentik(issuer_url: str) -> dict:
     """
     Consome o endpoint .well-known/openid-configuration do Authentik para descobrir os endpoints OIDC.
-    Em caso de falha, reconstrói os endpoints padrão a partir da URL.
+    Em caso de falha, reconstrói os endpoints padrão a partir da URL do issuer.
     """
+    discovery_url = issuer_url.rstrip("/") + "/.well-known/openid-configuration"
     try:
-        resp = requests.get(metadata_url, timeout=10, verify=False)
+        resp = requests.get(discovery_url, timeout=10, verify=False)
         if resp.status_code == 200:
             return resp.json()
     except Exception:
         pass
     
     # Fallback básico baseado na estrutura padrão do Authentik
-    base_url = metadata_url.split("/.well-known/")[0] if "/.well-known/" in metadata_url else metadata_url.rstrip("/")
-    base_host = metadata_url.split("/application/o/")[0] if "/application/o/" in metadata_url else base_url
+    base_url = issuer_url.split("/application/o/")[0] if "/application/o/" in issuer_url else issuer_url.rstrip("/")
     return {
-        "token_endpoint": f"{base_host}/application/o/token/",
-        "userinfo_endpoint": f"{base_host}/application/o/userinfo/",
-        "authorization_endpoint": f"{base_host}/application/o/authorize/"
+        "token_endpoint": f"{base_url}/application/o/token/",
+        "userinfo_endpoint": f"{base_url}/application/o/userinfo/",
+        "authorization_endpoint": f"{base_url}/application/o/authorize/"
     }
 
-def obter_url_autorizacao(client_id: str, redirect_uri: str, metadata_url: str) -> str:
+def obter_url_autorizacao(client_id: str, redirect_uri: str, issuer_url: str) -> str:
     """
     Gera a URL de autorização para o redirecionamento inicial.
     """
-    endpoints = obter_endpoints_authentik(metadata_url)
+    endpoints = obter_endpoints_authentik(issuer_url)
     auth_endpoint = endpoints.get("authorization_endpoint")
     
     params = {
@@ -43,12 +43,12 @@ def obter_url_autorizacao(client_id: str, redirect_uri: str, metadata_url: str) 
     }
     return f"{auth_endpoint}?{urllib.parse.urlencode(params)}"
 
-def obter_usuario_authentik(code: str, client_id: str, client_secret: str, redirect_uri: str, metadata_url: str) -> dict:
+def obter_usuario_authentik(code: str, client_id: str, client_secret: str, redirect_uri: str, issuer_url: str) -> dict:
     """
     Realiza a troca do authorization code pelo token de acesso do Authentik e obtém os dados do usuário.
     """
     try:
-        endpoints = obter_endpoints_authentik(metadata_url)
+        endpoints = obter_endpoints_authentik(issuer_url)
         token_endpoint = endpoints.get("token_endpoint")
         userinfo_endpoint = endpoints.get("userinfo_endpoint")
         
