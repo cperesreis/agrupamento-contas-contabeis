@@ -889,7 +889,40 @@ def _exibir_login():
         """, unsafe_allow_html=True)
 
 
-if not st.user.is_logged_in:
+def _is_logged_in() -> bool:
+    try:
+        return st.user.is_logged_in
+    except AttributeError:
+        return False
+
+
+# Valida se a configuração do Authentik está presente
+_auth_config_valida = False
+try:
+    if "auth" in st.secrets:
+        auth_sec = st.secrets["auth"]
+        if (
+            "client_id" in auth_sec
+            and "client_secret" in auth_sec
+            and "server_metadata_url" in auth_sec
+        ):
+            _auth_config_valida = True
+except Exception:
+    pass
+
+if not _auth_config_valida:
+    st.error("⚠️ Configuração de autenticação (Authentik) ausente ou incompleta.")
+    st.markdown(
+        "Por favor, certifique-se de configurar as credenciais do Authentik em seu arquivo `.env` "
+        "ou na aba **Secrets** do painel da Streamlit Cloud."
+    )
+    st.markdown(
+        "**Campos obrigatórios:** `client_id`, `client_secret` e `server_metadata_url` sob a seção `[auth]`."
+    )
+    st.stop()
+
+
+if not _is_logged_in():
     _exibir_login()
     st.stop()
 
@@ -1081,7 +1114,7 @@ elif not st.session_state.base_ausente_popup_exibido:
 # --- SIDEBAR: Filtros ---
 with st.sidebar:
     usuario_exibicao = "Usuário"
-    if st.user.is_logged_in:
+    if _is_logged_in():
         usuario_exibicao = (
             st.user.get("name") or 
             st.user.get("preferred_username") or 
