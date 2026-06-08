@@ -3,9 +3,59 @@ Análise de Despesas por Conta Contábil
 Aplicação Streamlit para consolidação e análise de despesas contábeis via DB2.
 """
 
+import os
+from dotenv import load_dotenv
+
+# Carrega as variáveis de ambiente do .env
+load_dotenv()
+
+# Sincroniza as configurações do Authentik com o secrets.toml do Streamlit
+if os.getenv("AUTHENTIK_CLIENT_ID"):
+    secrets_dir = ".streamlit"
+    secrets_file = os.path.join(secrets_dir, "secrets.toml")
+    os.makedirs(secrets_dir, exist_ok=True)
+    
+    redirect_uri = os.getenv("AUTHENTIK_REDIRECT_URI", "http://localhost:8501/oauth2callback")
+    cookie_secret = os.getenv("AUTHENTIK_COOKIE_SECRET", "default_cookie_secret_change_me_32_chars_or_more")
+    client_id = os.getenv("AUTHENTIK_CLIENT_ID")
+    client_secret = os.getenv("AUTHENTIK_CLIENT_SECRET")
+    server_metadata_url = os.getenv("AUTHENTIK_SERVER_METADATA_URL")
+    
+    # Preserva outras chaves se existirem no secrets.toml
+    other_lines = []
+    if os.path.exists(secrets_file):
+        try:
+            with open(secrets_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            in_auth = False
+            for line in lines:
+                if line.strip().startswith("[auth]"):
+                    in_auth = True
+                    continue
+                if in_auth and line.strip().startswith("["):
+                    in_auth = False
+                if not in_auth:
+                    other_lines.append(line)
+        except Exception:
+            pass
+            
+    # Escreve o secrets.toml atualizado
+    try:
+        with open(secrets_file, "w", encoding="utf-8") as f:
+            f.writelines(other_lines)
+            if other_lines and not other_lines[-1].endswith("\n"):
+                f.write("\n")
+            f.write("[auth]\n")
+            f.write(f'redirect_uri = "{redirect_uri}"\n')
+            f.write(f'cookie_secret = "{cookie_secret}"\n')
+            f.write(f'client_id = "{client_id}"\n')
+            f.write(f'client_secret = "{client_secret}"\n')
+            f.write(f'server_metadata_url = "{server_metadata_url}"\n')
+    except Exception as e:
+        print(f"Erro ao sincronizar secrets.toml: {e}")
+
 from datetime import date
 import html
-import os
 import re
 
 import pandas as pd
@@ -13,12 +63,6 @@ import streamlit as st
 import plotly.express as px
 
 from db import buscar_dados_financeiros
-from integrim_client import (
-    IntegrimClient,
-    IntegrimConfigError,
-    IntegrimError,
-    InvalidCredentialsError,
-)
 from processamento import (
     BASE_CLASSIFICACAO_ARQUIVO,
     calcular_indicadores,
@@ -44,14 +88,6 @@ st.set_page_config(
 
 if "tema_visual" not in st.session_state:
     st.session_state.tema_visual = "escuro"
-
-for chave, padrao in [
-    ("autenticado", False),
-    ("usuario_ciss", ""),
-    ("integrim_access_token", None),
-]:
-    if chave not in st.session_state:
-        st.session_state[chave] = padrao
 
 PLOTLY_TEMPLATE = "plotly_dark" if st.session_state.tema_visual == "escuro" else "plotly_white"
 
@@ -810,12 +846,6 @@ if st.session_state.tema_visual == "escuro":
     </style>
     """, unsafe_allow_html=True)
 
-def _limpar_sessao_auth():
-    st.session_state.autenticado = False
-    st.session_state.usuario_ciss = ""
-    st.session_state.integrim_access_token = None
-
-
 def _exibir_login():
     st.markdown('<div class="login-shell"></div>', unsafe_allow_html=True)
 
@@ -826,19 +856,17 @@ def _exibir_login():
         <div class="login-form-marker"></div>
         <div class="login-brand">
             <h1>Análise de Despesas</h1>
-            <p>Acesso seguro com credenciais CISSPoder</p>
+            <p>Acesso seguro via Authentik</p>
         </div>
         <div class="login-title">Entre para continuar</div>
-        <div class="login-copy">Use seu usuário e senha do CISSPoder para acessar o painel.</div>
+        <div class="login-copy">Você será redirecionado para o Authentik para autenticação segura.</div>
         """, unsafe_allow_html=True)
 
-        with st.form("form_login_ciss"):
-            username = st.text_input("Usuário", placeholder="Seu usuário CISSPoder")
-            password = st.text_input("Senha", type="password", placeholder="Sua senha")
-            entrar = st.form_submit_button("Entrar", use_container_width=True)
+        if st.button("Entrar com Authentik", use_container_width=True, type="primary"):
+            st.login()
 
         st.markdown(
-            '<div class="login-footer">As credenciais são validadas diretamente no INTEGRIM.</div>',
+            '<div class="login-footer">Autenticação obrigatória gerenciada pelo Authentik.</div>',
             unsafe_allow_html=True,
         )
 
@@ -860,37 +888,8 @@ def _exibir_login():
         </div>
         """, unsafe_allow_html=True)
 
-    if not entrar:
-        return
 
-    if not username.strip() or not password:
-        st.error("Informe usuário e senha.")
-        return
-
-    with st.spinner("Validando acesso no INTEGRIM..."):
-        try:
-            payload = IntegrimClient().authenticate(username.strip(), password)
-        except InvalidCredentialsError:
-            st.error("Usuario ou senha incorretos")
-            return
-        except IntegrimConfigError as exc:
-            st.error(exc.user_message)
-            return
-        except IntegrimError as exc:
-            st.error(exc.user_message)
-            return
-
-    st.session_state.autenticado = True
-    st.session_state.usuario_ciss = username.strip()
-    st.session_state.integrim_access_token = payload["access_token"]
-    st.rerun()
-
-
-def criar_cliente_integrim_autenticado() -> IntegrimClient:
-    return IntegrimClient(access_token=st.session_state.get("integrim_access_token"))
-
-
-if not st.session_state.autenticado:
+if not st.user.is_logged_in:
     _exibir_login()
     st.stop()
 
@@ -1081,13 +1080,22 @@ elif not st.session_state.base_ausente_popup_exibido:
 
 # --- SIDEBAR: Filtros ---
 with st.sidebar:
+    usuario_exibicao = "Usuário"
+    if st.user.is_logged_in:
+        usuario_exibicao = (
+            st.user.get("name") or 
+            st.user.get("preferred_username") or 
+            st.user.get("email") or 
+            getattr(st.user, "name", None) or 
+            getattr(st.user, "email", None) or 
+            "Usuário"
+        )
     st.markdown(
-        f'<div class="user-pill">Conectado como<br><strong>{html.escape(st.session_state.usuario_ciss)}</strong></div>',
+        f'<div class="user-pill">Conectado como<br><strong>{html.escape(usuario_exibicao)}</strong></div>',
         unsafe_allow_html=True,
     )
     if st.button("Sair", key="btn_logout", use_container_width=True):
-        _limpar_sessao_auth()
-        st.rerun()
+        st.logout()
 
     st.header("🔎 Filtros da Consulta")
     with st.form("form_consulta_db2"):
