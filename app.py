@@ -874,6 +874,7 @@ def _exibir_login(auth_url: str):
 for chave, padrao in [
     ("autenticado", False),
     ("usuario_ciss", ""),
+    ("deslogado_manualmente", False),
 ]:
     if chave not in st.session_state:
         st.session_state[chave] = padrao
@@ -911,6 +912,7 @@ if code and not st.session_state.autenticado:
         if res_auth.get("ok"):
             st.session_state.autenticado = True
             st.session_state.usuario_ciss = res_auth.get("usuario", "Usuário")
+            st.session_state.deslogado_manualmente = False  # Reseta o flag ao logar com sucesso
             st.query_params.clear()
             st.rerun()
         else:
@@ -919,7 +921,29 @@ if code and not st.session_state.autenticado:
 # Obriga o login
 if not st.session_state.autenticado:
     auth_url = obter_url_autorizacao(AUTHENTIK_CLIENT_ID, AUTHENTIK_REDIRECT_URI, AUTHENTIK_SERVER_METADATA_URL)
-    _exibir_login(auth_url)
+    if st.session_state.deslogado_manualmente:
+        _exibir_login(auth_url)
+    else:
+        # Redireciona automaticamente para o Authentik
+        st.markdown(
+            f"""
+            <meta http-equiv="refresh" content="0; url={auth_url}">
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; font-family: sans-serif;">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem; animation: spin 2s linear infinite;">🔄</div>
+                <div style="font-size: 1.2rem; color: #4b5563;">Redirecionando para o portal de segurança do Authentik...</div>
+                <div style="margin-top: 1rem; font-size: 0.9rem; color: #9ca3af;">
+                    Se não for redirecionado em instantes, <a href="{auth_url}">clique aqui</a>.
+                </div>
+            </div>
+            <style>
+            @keyframes spin {{
+                0% {{ transform: rotate(0deg); }}
+                100% {{ transform: rotate(360deg); }}
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
     st.stop()
 
 col_tema_claro, col_tema_escuro = st.columns(2)
@@ -1115,6 +1139,7 @@ with st.sidebar:
     )
     if st.button("Sair", key="btn_logout", use_container_width=True):
         st.session_state.clear()
+        st.session_state.deslogado_manualmente = True
         st.rerun()
 
     st.header("🔎 Filtros da Consulta")
