@@ -1,6 +1,11 @@
 """
 Cliente de autenticacao e consumo de servicos CISSPoder via INTEGRIM.
 
+Este modulo foi preservado como modo legado de login humano quando
+AUTH_PROVIDER=integrim. Com AUTH_PROVIDER=authentik, o login do usuario passa
+a ser feito por OIDC no authentik e este cliente deve ser usado apenas se a
+aplicacao precisar de integracao tecnica futura com servicos CISS/INTEGRIM.
+
 As credenciais sensiveis sao lidas do ambiente e nunca devem ser registradas
 em logs. O token retornado deve ser mantido apenas em memoria/sessao.
 """

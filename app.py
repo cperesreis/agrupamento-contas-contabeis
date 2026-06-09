@@ -7,11 +7,18 @@ from datetime import date
 import html
 import os
 import re
+import secrets
 
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 
+from authentik_client import (
+    AuthentikClient,
+    AuthentikConfigError,
+    AuthentikError,
+    InvalidAuthentikStateError,
+)
 from db import buscar_dados_financeiros
 from integrim_client import (
     IntegrimClient,
@@ -34,6 +41,10 @@ from processamento import (
 
 NOME_BASE_REVISAO = "base_classificacao_para_revisao.ods"
 EMPRESAS_DISPONIVEIS = list(range(1, 21))
+AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "authentik").strip().lower()
+AUTH_PROVIDER_VALIDOS = {"authentik", "integrim"}
+if AUTH_PROVIDER not in AUTH_PROVIDER_VALIDOS:
+    AUTH_PROVIDER = "authentik"
 
 
 st.set_page_config(
@@ -47,6 +58,14 @@ if "tema_visual" not in st.session_state:
 
 for chave, padrao in [
     ("autenticado", False),
+    ("auth_provider", AUTH_PROVIDER),
+    ("usuario_auth", ""),
+    ("auth_userinfo", {}),
+    ("auth_access_token", None),
+    ("auth_id_token", None),
+    ("auth_state", None),
+    ("auth_nonce", None),
+    ("auth_logout_url", None),
     ("usuario_ciss", ""),
     ("integrim_access_token", None),
 ]:
@@ -812,11 +831,147 @@ if st.session_state.tema_visual == "escuro":
 
 def _limpar_sessao_auth():
     st.session_state.autenticado = False
+    st.session_state.auth_provider = AUTH_PROVIDER
+    st.session_state.usuario_auth = ""
+    st.session_state.auth_userinfo = {}
+    st.session_state.auth_access_token = None
+    st.session_state.auth_id_token = None
+    st.session_state.auth_state = None
+    st.session_state.auth_nonce = None
+    st.session_state.auth_logout_url = None
     st.session_state.usuario_ciss = ""
     st.session_state.integrim_access_token = None
 
 
-def _exibir_login():
+def _query_param_unico(nome: str) -> str | None:
+    valor = st.query_params.get(nome)
+    if isinstance(valor, list):
+        return valor[0] if valor else None
+    return valor
+
+
+def _limpar_query_auth():
+    for chave in ("code", "state", "session_state", "iss", "error", "error_description"):
+        if chave in st.query_params:
+            del st.query_params[chave]
+
+
+def _nome_usuario_authentik(userinfo: dict) -> str:
+    for chave in ("name", "preferred_username", "email", "sub"):
+        valor = userinfo.get(chave)
+        if valor:
+            return str(valor)
+    return "Usuario autenticado"
+
+
+def _processar_callback_authentik() -> bool:
+    code = _query_param_unico("code")
+    state = _query_param_unico("state")
+    erro = _query_param_unico("error")
+    erro_descricao = _query_param_unico("error_description")
+
+    if erro:
+        st.error(erro_descricao or erro)
+        _limpar_query_auth()
+        return False
+
+    if not code and not state:
+        return False
+
+    if not code or not state:
+        _limpar_sessao_auth()
+        _limpar_query_auth()
+        raise InvalidAuthentikStateError("State OIDC ausente ou invalido.")
+
+    try:
+        cliente = AuthentikClient()
+        cliente.validate_state(state)
+        token_payload = cliente.exchange_code(code)
+        userinfo = cliente.userinfo(str(token_payload["access_token"]))
+    except AuthentikError:
+        _limpar_sessao_auth()
+        _limpar_query_auth()
+        raise
+
+    st.session_state.autenticado = True
+    st.session_state.auth_provider = "authentik"
+    st.session_state.auth_access_token = token_payload.get("access_token")
+    st.session_state.auth_id_token = token_payload.get("id_token")
+    st.session_state.auth_userinfo = userinfo
+    st.session_state.usuario_auth = _nome_usuario_authentik(userinfo)
+    st.session_state.usuario_ciss = ""
+    st.session_state.integrim_access_token = None
+    st.session_state.auth_state = None
+    st.session_state.auth_nonce = None
+    st.session_state.auth_logout_url = None
+    _limpar_query_auth()
+    st.rerun()
+    return True
+
+
+def _exibir_login_authentik():
+    st.markdown('<div class="login-shell"></div>', unsafe_allow_html=True)
+
+    col_form, col_visual = st.columns([0.95, 1.05], gap="small", vertical_alignment="center")
+
+    with col_form:
+        st.markdown("""
+        <div class="login-form-marker"></div>
+        <div class="login-brand">
+            <h1>Análise de Despesas</h1>
+            <p>Acesso seguro com authentik</p>
+        </div>
+        <div class="login-title">Entre para continuar</div>
+        <div class="login-copy">Use sua conta corporativa para acessar o painel.</div>
+        """, unsafe_allow_html=True)
+
+        try:
+            nonce = secrets.token_urlsafe(32)
+            cliente = AuthentikClient()
+            state = cliente.create_state(nonce)
+            login_url = cliente.authorization_url(state=state, nonce=nonce)
+            st.session_state.auth_state = state
+            st.session_state.auth_nonce = nonce
+            logout_url = st.session_state.get("auth_logout_url")
+            if logout_url:
+                st.info("Sessao local encerrada. Para sair tambem do authentik, encerre a sessao global.")
+                st.link_button("Encerrar sessão no authentik", logout_url, use_container_width=True)
+            st.link_button("Entrar com authentik", login_url, use_container_width=True)
+        except AuthentikConfigError as exc:
+            st.error(exc.user_message)
+        except AuthentikError as exc:
+            st.error(exc.user_message)
+
+        st.markdown(
+            '<div class="login-footer">O login é feito no authentik e o app não recebe sua senha.</div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_visual:
+        _exibir_login_visual()
+
+
+def _exibir_login_visual():
+    st.markdown("""
+    <div class="login-visual-marker"></div>
+    <div class="login-visual" aria-hidden="true">
+        <div class="login-illustration">
+            <div class="login-plane"></div>
+            <div class="login-phone"></div>
+            <div class="login-panel">
+                <div class="login-avatar"></div>
+                <div class="login-line one"></div>
+                <div class="login-line two"></div>
+                <div class="login-line three"></div>
+            </div>
+            <div class="login-person"></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def _exibir_login_integrim_legacy():
+    """Fluxo legado CISSPoder/INTEGRIM, reativado com AUTH_PROVIDER=integrim."""
     st.markdown('<div class="login-shell"></div>', unsafe_allow_html=True)
 
     col_form, col_visual = st.columns([0.95, 1.05], gap="small", vertical_alignment="center")
@@ -843,22 +998,7 @@ def _exibir_login():
         )
 
     with col_visual:
-        st.markdown("""
-        <div class="login-visual-marker"></div>
-        <div class="login-visual" aria-hidden="true">
-            <div class="login-illustration">
-                <div class="login-plane"></div>
-                <div class="login-phone"></div>
-                <div class="login-panel">
-                    <div class="login-avatar"></div>
-                    <div class="login-line one"></div>
-                    <div class="login-line two"></div>
-                    <div class="login-line three"></div>
-                </div>
-                <div class="login-person"></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        _exibir_login_visual()
 
     if not entrar:
         return
@@ -881,13 +1021,40 @@ def _exibir_login():
             return
 
     st.session_state.autenticado = True
+    st.session_state.auth_provider = "integrim"
     st.session_state.usuario_ciss = username.strip()
     st.session_state.integrim_access_token = payload["access_token"]
     st.rerun()
 
 
+def _exibir_login():
+    if AUTH_PROVIDER == "integrim":
+        _exibir_login_integrim_legacy()
+        return
+
+    try:
+        if _processar_callback_authentik():
+            return
+    except InvalidAuthentikStateError as exc:
+        st.error(exc.user_message)
+    except AuthentikConfigError as exc:
+        st.error(exc.user_message)
+    except AuthentikError as exc:
+        st.error(exc.user_message)
+
+    _exibir_login_authentik()
+
+
 def criar_cliente_integrim_autenticado() -> IntegrimClient:
     return IntegrimClient(access_token=st.session_state.get("integrim_access_token"))
+
+
+def _usuario_conectado_exibicao() -> str:
+    if st.session_state.get("auth_provider") == "authentik":
+        return st.session_state.get("usuario_auth") or _nome_usuario_authentik(
+            st.session_state.get("auth_userinfo") or {}
+        )
+    return st.session_state.get("usuario_ciss") or "Usuario autenticado"
 
 
 if not st.session_state.autenticado:
@@ -1082,11 +1249,21 @@ elif not st.session_state.base_ausente_popup_exibido:
 # --- SIDEBAR: Filtros ---
 with st.sidebar:
     st.markdown(
-        f'<div class="user-pill">Conectado como<br><strong>{html.escape(st.session_state.usuario_ciss)}</strong></div>',
+        f'<div class="user-pill">Conectado como<br><strong>{html.escape(_usuario_conectado_exibicao())}</strong></div>',
         unsafe_allow_html=True,
     )
     if st.button("Sair", key="btn_logout", use_container_width=True):
+        logout_url = None
+        if st.session_state.get("auth_provider") == "authentik":
+            try:
+                logout_url = AuthentikClient().end_session_url(
+                    st.session_state.get("auth_id_token")
+                )
+            except AuthentikError:
+                logout_url = None
         _limpar_sessao_auth()
+        if logout_url:
+            st.session_state.auth_logout_url = logout_url
         st.rerun()
 
     st.header("🔎 Filtros da Consulta")

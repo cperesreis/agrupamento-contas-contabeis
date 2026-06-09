@@ -10,6 +10,8 @@ __pycache__/
 consolidado.ods
 pendencias.ods
 *.tmp
+*.swp
 implementationPlan.md
 prompts-integrim-ciss.md
 specs-auth-ciss.md
+spec-auth-authentik-prompt.md
