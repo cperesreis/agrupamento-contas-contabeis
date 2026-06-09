@@ -33,6 +33,33 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _config_value(key: str, default: str = "") -> str:
+    value = os.getenv(key, "").strip()
+    if value:
+        return value
+
+    try:
+        import streamlit as st
+
+        candidates = [key, key.lower()]
+        for candidate in candidates:
+            value = st.secrets.get(candidate, "")
+            if value:
+                return str(value).strip()
+
+        if "auth" in st.secrets:
+            auth_secrets = st.secrets["auth"]
+            short_key = key.replace("AUTHENTIK_", "").lower()
+            for candidate in (short_key, short_key.upper()):
+                value = auth_secrets.get(candidate, "")
+                if value:
+                    return str(value).strip()
+    except Exception:
+        pass
+
+    return default
+
+
 class AuthentikError(Exception):
     """Erro base para falhas de autenticacao via authentik."""
 
@@ -77,15 +104,19 @@ class AuthentikConfig:
 
     @classmethod
     def from_env(cls) -> "AuthentikConfig":
-        base_url = os.getenv("AUTHENTIK_BASE_URL", "https://auth.lojaototal.com.br").strip().rstrip("/")
-        provider_slug = os.getenv("AUTHENTIK_PROVIDER_SLUG", "contascontabeis").strip().strip("/")
-        issuer = os.getenv("AUTHENTIK_ISSUER", "").strip().rstrip("/") or None
-        client_id = os.getenv("AUTHENTIK_CLIENT_ID", "").strip()
-        client_secret = os.getenv("AUTHENTIK_CLIENT_SECRET", "").strip()
-        redirect_uri = os.getenv("AUTHENTIK_REDIRECT_URI", "http://localhost:8501").strip()
-        scopes = os.getenv("AUTHENTIK_SCOPES", "openid profile email").strip()
-        timeout_raw = os.getenv("REQUEST_TIMEOUT_SECONDS", "15").strip()
-        state_ttl_raw = os.getenv("AUTHENTIK_STATE_TTL_SECONDS", "600").strip()
+        base_url = _config_value("AUTHENTIK_BASE_URL", "https://auth.lojaototal.com.br").rstrip("/")
+        provider_slug = _config_value("AUTHENTIK_PROVIDER_SLUG", "contascontabeis").strip("/")
+        issuer = _config_value("AUTHENTIK_ISSUER", "").rstrip("/") or None
+        metadata_url = _config_value("AUTHENTIK_SERVER_METADATA_URL", "")
+        if not issuer and metadata_url and "/.well-known/" in metadata_url:
+            issuer = metadata_url.split("/.well-known/", 1)[0].rstrip("/")
+
+        client_id = _config_value("AUTHENTIK_CLIENT_ID")
+        client_secret = _config_value("AUTHENTIK_CLIENT_SECRET")
+        redirect_uri = _config_value("AUTHENTIK_REDIRECT_URI", "http://localhost:8501")
+        scopes = _config_value("AUTHENTIK_SCOPES", "openid profile email")
+        timeout_raw = _config_value("REQUEST_TIMEOUT_SECONDS", "15")
+        state_ttl_raw = _config_value("AUTHENTIK_STATE_TTL_SECONDS", "600")
 
         faltando = [
             nome
